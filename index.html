@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>entrain — live: grow ears, enslave them</title>
+<style>
+  body { margin:0; background:#070a0f; color:#e7ecf5; font-family:monospace; overflow:hidden; }
+  canvas { display:block; }
+  .panel { position:absolute; background:rgba(7,10,15,.88); border:1px solid #23425a;
+           border-radius:6px; padding:12px 14px; line-height:1.55; font-size:13px; }
+  #hud { top:16px; left:16px; max-width:330px; }
+  #ctl { bottom:16px; left:16px; }
+  button { background:#0d1622; color:#4fd1c5; border:1px solid #2a5a6a; padding:6px 10px;
+           margin:2px; cursor:pointer; font-family:monospace; }
+  button.on { background:#4fd1c5; color:#000; }
+  .dim { color:#8a93a8; } .amber { color:#f2b84b; } .purple { color:#c084fc; }
+</style>
+</head>
+<body>
+<div id="hud" class="panel">
+  <b>ENTRAIN — self-wiring resonator fractal</b><br>
+  <span class="dim">Nodes light up when the input carries their frequency.
+  A leaky-integrator gate accumulates <i>unexplained</i> input energy; when it trips,
+  the network <b>grows a new ear</b> at the frequency it failed to hear, attached to its
+  nearest kin. Toggle the carrier to <span class="purple">enslave</span> every grown
+  node to one master rhythm.</span><br><br>
+  ears: <span id="nN">1</span> · surprise: <span id="nS" class="amber">0.0</span>
+  / trip 6 · grown for: <span id="nG">—</span>
+</div>
+<div id="ctl" class="panel">
+  <b>INPUT MIX</b> <span class="dim">(click to add/remove a component)</span><br>
+  <span id="freqBtns"></span><br>
+  <button id="carrier">CARRIER: OFF — enslave all ears</button>
+  <button id="reset">RESET</button>
+</div>
+<canvas id="cv"></canvas>
+<script>
+// ---------- substrate: Stuart-Landau nodes, exponential integrator ----------
+const FS=240, DT=1/FS, TWO_PI=Math.PI*2;
+let nodes=[], t=0;
+function addNode(f, parent=-1){
+  const n={f:f, re:1e-3, im:0, mu:-0.5, amp:0, parent:parent, born:t};
+  nodes.push(n); return nodes.length-1;
+}
+function reset(){ nodes=[]; addNode(6+Math.random()*30); gate=0; lastGrow="—"; }
+// input mix
+const FREQS=[5,8,12,17,23,30,38];
+let active=new Set([12]);
+let carrierOn=false, carPh=0; const CAR_F=10, CAR_W=6;
+// surprise gate (MagnitudeGate, same as clutch.py)
+let gate=0; const GAIN=2.2, LEAK=1.4, TRIP=6; let lastGrow="—";
+
+function stepPhysics(){
+  for(let k=0;k<6;k++){                       // substeps per frame
+    t+=DT;
+    let s=0; for(const f of active) s+=Math.sin(TWO_PI*f*t+f);   // input signal
+    carPh+=TWO_PI*CAR_F*DT;
+    const carRe=carrierOn?CAR_W*Math.cos(carPh):0,
+          carIm=carrierOn?CAR_W*Math.sin(carPh):0;
+    for(const n of nodes){
+      const r2=n.re*n.re+n.im*n.im;
+      const g=Math.exp((n.mu-r2)*DT), th=TWO_PI*n.f*DT;
+      const c=Math.cos(th)*g, si=Math.sin(th)*g;
+      const re=n.re*c-n.im*si, im=n.re*si+n.im*c;   // exact rotation+decay
+      n.re=re+DT*(s + carRe); n.im=im+DT*(carIm);
+      n.amp=0.98*n.amp+0.02*Math.sqrt(n.re*n.re+n.im*n.im);
+    }
+    // unexplained energy: input power present but no ear resonating near any active f
+    let unexplained=0;
+    for(const f of active){
+      let best=1e9; for(const n of nodes) best=Math.min(best,Math.abs(n.f-f));
+      if(best>1.5) unexplained+=1;
+    }
+    gate=Math.max(0, gate + GAIN*unexplained*DT - LEAK*DT);
+    if(gate>TRIP){                             // GROW: ear at the loudest uncovered f
+      let target=null;
+      for(const f of active){
+        let best=1e9; for(const n of nodes) best=Math.min(best,Math.abs(n.f-f));
+        if(best>1.5){ target=f; break; }
+      }
+      if(target!==null && nodes.length<24){
+        let pi=0,bd=1e9;
+        nodes.forEach((n,i)=>{const d=Math.abs(n.f-target); if(d<bd){bd=d;pi=i;}});
+        addNode(target+ (Math.random()-0.5)*0.4, pi);
+        lastGrow=target.toFixed(0)+" Hz";
+      }
+      gate=0;
+    }
+  }
+}
+// ---------- render: radial fractal, angle=lineage, radius=frequency ----------
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
+addEventListener('resize',resize); resize();
+function polar(n,i){
+  const cx=cv.width/2, cy=cv.height/2;
+  const r=40+ n.f/45*(Math.min(cx,cy)-90);
+  const ang=(i*2.399963)% (TWO_PI);            // golden-angle spread by index
+  return [cx+r*Math.cos(ang), cy+r*Math.sin(ang)];
+}
+function draw(){
+  ctx.fillStyle='#070a0f'; ctx.fillRect(0,0,cv.width,cv.height);
+  const cx=cv.width/2, cy=cv.height/2;
+  // frequency rings for the active inputs
+  for(const f of active){
+    ctx.strokeStyle='rgba(242,184,75,.18)'; ctx.beginPath();
+    ctx.arc(cx,cy,40+f/45*(Math.min(cx,cy)-90),0,TWO_PI); ctx.stroke();
+  }
+  // edges (lineage)
+  ctx.strokeStyle='rgba(79,209,197,.25)'; ctx.lineWidth=1;
+  nodes.forEach((n,i)=>{ if(n.parent>=0){
+    const [x1,y1]=polar(n,i), [x2,y2]=polar(nodes[n.parent],n.parent);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }});
+  // nodes: size=amplitude, spoke=phase; purple when enslaved to carrier
+  nodes.forEach((n,i)=>{
+    const [x,y]=polar(n,i);
+    const a=Math.min(1,n.amp*1.6), R=4+16*a;
+    const locked=carrierOn && a>0.15;
+    ctx.fillStyle= locked? 'rgba(192,132,252,'+(0.35+0.6*a)+')'
+                         : 'rgba(79,209,197,'+(0.25+0.7*a)+')';
+    ctx.beginPath(); ctx.arc(x,y,R,0,TWO_PI); ctx.fill();
+    const ph=Math.atan2(n.im,n.re);
+    ctx.strokeStyle='#e7ecf5'; ctx.beginPath(); ctx.moveTo(x,y);
+    ctx.lineTo(x+R*Math.cos(ph), y+R*Math.sin(ph)); ctx.stroke();
+    ctx.fillStyle='#8a93a8'; ctx.font='10px monospace';
+    ctx.fillText(n.f.toFixed(0), x+R+3, y+3);
+  });
+  document.getElementById('nN').textContent=nodes.length;
+  document.getElementById('nS').textContent=gate.toFixed(1);
+  document.getElementById('nG').textContent=lastGrow;
+}
+function loop(){ stepPhysics(); draw(); requestAnimationFrame(loop); }
+// ---------- controls ----------
+const btnBox=document.getElementById('freqBtns');
+FREQS.forEach(f=>{
+  const b=document.createElement('button'); b.textContent=f+' Hz';
+  if(active.has(f)) b.classList.add('on');
+  b.onclick=()=>{ active.has(f)?active.delete(f):active.add(f);
+                  b.classList.toggle('on'); };
+  btnBox.appendChild(b);
+});
+document.getElementById('carrier').onclick=e=>{
+  carrierOn=!carrierOn;
+  e.target.textContent='CARRIER: '+(carrierOn?'ON — all ears run at 10 Hz':'OFF — enslave all ears');
+  e.target.classList.toggle('on',carrierOn);
+};
+document.getElementById('reset').onclick=reset;
+reset(); loop();
+</script>
+</body>
+</html>
