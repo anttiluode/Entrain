@@ -1,5 +1,7 @@
 # entrain — a self-wiring network of oscillator fractals that computes by frequency
 
+Index.html is at: https://anttiluode.github.io/Entrain/ 
+
 Lineage: Geometric AI Core V5 (fractal growth + carrier), the Resonator phasor gates,
 and the Clutch (surprise-gated compute). This repo distills the "fractals enslaving
 sub-fractals by frequency" intuition into machinery that is **simulated, measured, and
