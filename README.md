@@ -168,8 +168,8 @@ the next ear.
 - `benchmark.py` — T1-T4 numbers; run it yourself (~3 min, numpy only)
 - `bets.py` — B1-B3 numbers (scaling, routing, phase); ~3 min
 - `router.py` / `b4_router.py` — the router inside the grower + its measurement (~4 min)
-- `index.html` — self-contained live demo: inject frequencies, watch it grow ears,
-  toggle the carrier and watch enslavement (no webcam, no server, no dependencies)
+- `index.html` — self-contained live demo, speak to it - turn on 'hear its ears'
+and listen to its system tune on same frequency as your voice. 
 
 ```bash
 pip install numpy
